@@ -1,6 +1,7 @@
 package main
 
 import (
+	"UserManagementMS/Auth"
 	"UserManagementMS/DBConnection"
 	"UserManagementMS/Encryption"
 	"context"
@@ -27,19 +28,38 @@ type User struct {
 	CreatedAt      primitive.Timestamp `json:"created_at,omitempty" bson:"created_at,omitempty"`
 }
 
+type Guest struct {
+	Username string `json:"username" bson:"username"`
+}
+
 var client *mongo.Client
 
 func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("content-type", "application/json")
 	var user User
+	var dbuser User
 	_ = json.NewDecoder(req.Body).Decode(&user)
 	user.Password = string(Encryption.Encrypt([]byte(user.Password), "password"))
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err := collection.FindOne(ctx, User{Username: user.Username}).Decode(&dbuser)
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
+	}
+
+	if user.Username == dbuser.Username {
+		res.WriteHeader(http.StatusConflict)
+		res.Write([]byte(`{ "message": "username ` + dbuser.Username + ` already exist"}`))
+		return
+	}
+
 	result, err := collection.InsertOne(ctx, user)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	res.WriteHeader(http.StatusCreated)
 	json.NewEncoder(res).Encode(result)
 }
@@ -55,17 +75,20 @@ func GetUsersEndpoint(res http.ResponseWriter, req *http.Request) {
 		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
 		return
 	}
+
 	defer cursor.Close(ctx)
 	for cursor.Next(ctx) {
 		var user User
 		cursor.Decode(&user)
 		users = append(users, user)
 	}
+
 	if err := cursor.Err(); err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
 		return
 	}
+
 	json.NewEncoder(res).Encode(users)
 }
 
@@ -77,11 +100,13 @@ func GetUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err := collection.FindOne(ctx, User{ID: id}).Decode(&user)
+
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
 		return
 	}
+
 	json.NewEncoder(res).Encode(user)
 }
 
@@ -93,11 +118,13 @@ func DeleteUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err := collection.FindOneAndDelete(ctx, User{ID: id}).Decode(&user)
+
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
 		return
 	}
+
 	json.NewEncoder(res).Encode(user)
 }
 
@@ -109,17 +136,37 @@ func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err := collection.FindOne(ctx, User{Username: user.Username}).Decode(&result)
+
 	if err != nil {
 		res.WriteHeader(http.StatusNotFound)
 		res.Write([]byte(`{ "message": "User with username ` + user.Username + ` doesn't exist" }`))
 		return
 	}
+
 	if user.Password != string(Encryption.Decrypt([]byte(result.Password), "password")) {
 		res.WriteHeader(http.StatusUnauthorized)
 		res.Write([]byte(`{ "message": "Wrong password" }`))
 		return
 	}
-	json.NewEncoder(res).Encode(result)
+
+	var tokenString string
+	tokenString, err = Auth.GenerateJWT(true, result.Username)
+
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "something went wrong: ` + err.Error() + `" }`))
+		return
+	}
+
+	json.NewEncoder(res).Encode(bson.M{
+		"firstname":       result.Firstname,
+		"lastname":        result.Lastname,
+		"username":        result.Username,
+		"country":         result.Country,
+		"profile_picture": result.ProfilePicture,
+		"created_at":      result.CreatedAt,
+		"token":           tokenString,
+	})
 }
 
 func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
@@ -131,12 +178,41 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	result, err := collection.UpdateOne(ctx, bson.M{"_id": id}, bson.D{{"$set", user}})
+
 	if err != nil {
 		res.WriteHeader(http.StatusNotFound)
 		res.Write([]byte(`{ "message": "User doesn't exist" }`))
 		return
 	}
+
 	json.NewEncoder(res).Encode(result)
+}
+
+func LoginGuestEndpoint(res http.ResponseWriter, req *http.Request) {
+	res.Header().Add("content-type", "application/json")
+	var guest Guest
+	var dbuser User
+	_ = json.NewDecoder(req.Body).Decode(&guest)
+	collection := client.Database("geosmart_db").Collection("User")
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err := collection.FindOne(ctx, User{Username: guest.Username}).Decode(&dbuser)
+
+	if guest.Username == dbuser.Username {
+		res.WriteHeader(http.StatusConflict)
+		res.Write([]byte(`{ "message": "username ` + dbuser.Username + ` already exist"}`))
+		return
+	}
+
+	var tokenString string
+	tokenString, err = Auth.GenerateJWT(false, guest.Username)
+
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "something went wrong: ` + err.Error() + `" }`))
+		return
+	}
+
+	json.NewEncoder(res).Encode(bson.M{"token": tokenString})
 }
 
 func main() {
@@ -153,6 +229,7 @@ func main() {
 	router.HandleFunc("/user/{id}", GetUserEndpoint).Methods("GET")
 	router.HandleFunc("/user/{id}", DeleteUserEndpoint).Methods("DELETE")
 	router.HandleFunc("/user/{id}", UpdateuserEndpoint).Methods("PUT")
+	router.HandleFunc("/guest/login", LoginGuestEndpoint).Methods("POST")
 
 	// port listening
 	log.Fatal(http.ListenAndServe(":3000", router))
