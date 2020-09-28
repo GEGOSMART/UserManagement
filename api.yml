@@ -1,0 +1,227 @@
+swagger: "2.0"
+info:
+  description: "User Management Microservice for Geosmart System using Golang as programming lenguage and a NoSQL MongoDB database."
+  version: "1.0.0"
+  title: "UserManagementMS"
+  termsOfService: ""
+  contact: 
+    name:  "Nicolás Rodríguez Valenzuela (developer)"
+    email: "nicrodriguezval@unal.edu.co"
+  #license:      #Completar con el tipo de licencia que aplique
+  #  name: "Apache 2.0"
+  #  url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+#host: "petstore.swagger.io" #Completar con la URL de la instancia
+#basePath: "/"
+tags:
+- name: "user"
+  description: "Present system users"
+- name: "guest"
+  description: "Login as guest"
+schemes:
+- "https"
+- "http"
+paths:
+  /user:
+    get:
+      tags:
+      - "user"
+      summary: "Returns all system users"
+      description: ""
+      operationId: "listUsers"
+      produces:
+      - "application/json"
+      parameters: []
+      responses:
+        "200":
+          description: "Successful operation"
+        "500":
+          description: "Internal server error"
+    post:
+      tags:
+      - "user"
+      summary: "Creates a new user in the system"
+      description: "For valid response introduce the correct user object parameters"
+      operationId: "userLogin"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "User object"
+        required: true
+        schema:
+          $ref: '#/definitions/User'
+      responses:
+        "201":
+          description: "Created"
+        "409":
+          description: "Status Conflict"
+        "500":
+          description: "Internal Server Error"
+  /user/login:
+    post:
+      tags:
+      - "user"
+      summary: "Login as system user"
+      description: "For valid response try the correct username and password"
+      operationId: "loginUser"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "UserLogin object"
+        required: true
+        schema:
+          $ref: '#/definitions/UserLogin'
+      responses:
+        "200":
+          description: "Successful operation"
+        "401":
+          description: "Wrong password"
+        "404":
+          description: "User with username doesn't exist"
+        "500":
+          description: "Internal server error"
+  /user/{id}:
+    get:
+      tags:
+      - "user"
+      summary: "Retrieves user by id"
+      description: "For valid response try integer IDs with positive integer value. Negative or non-integer values will generate API errors"
+      operationId: "retrieveUser"
+      produces:
+      - "application/json"
+      parameters: 
+      - name: "id"
+        in: "path"
+        description: "User id to return"
+        required: true
+        type: "integer"
+        format: "int64"
+      responses:
+        "200":
+          description: "Successful operation"
+        "500":
+          description: "Internal Server Error"
+    put:
+      tags:
+      - "user"
+      summary: "Updates user by id"
+      description: "For valid response try integer IDs with positive integer value. Negative or non-integer values will generate API errors"
+      operationId: "updateUser"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "User id that needs to be updated"
+        required: true
+        type: "integer"
+        format: "int64"
+      - in: "body"
+        name: "body"
+        description: "Updated user object"
+        required: true
+        schema:
+          $ref: '#/definitions/User'
+      responses:
+        "200":
+          description: "Successful operation"
+        "404":
+          description: "User doesn't exist"
+    delete:
+      tags:
+      - "user"
+      summary: "Delete user by id"
+      description: "For valid response try integer IDs with positive integer value. Negative or non-integer values will generate API errors"
+      operationId: "deleteUser"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "User id that needs to be deleted"
+        required: true
+        type: "integer"
+        minimum: 1.0
+        format: "int64"
+      responses:
+        "200":
+          description: "Successful operation"
+        "500":
+          description: "Internal server error"
+  /guest/login:
+    post:
+      tags:
+      - "guest"
+      summary: "Login as system guest"
+      description: "For valid response enter an unused username"
+      operationId: "loginGuest"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Category object Objeto categoría que se va a crear"
+        required: true
+        schema:
+          $ref: '#/definitions/Guest'
+      responses:
+        "200":
+          description: "Successful operation"
+        "404":
+          description: "Username already exist"
+        "500":
+          description: "Internal server error"
+definitions:
+  User:
+    type: "object"
+    properties:
+      _id:
+        type: "string"
+        format: "ObjectID"
+      firstname:
+        type: "string"
+      lastname:
+        type: "string"
+      username:
+        type: "string"
+      password:
+        type: "string"
+      country:
+        type: "string"
+      profile_picture:
+        type: "string"
+      created_at:
+        type: "string"
+        format: "Timestamp"
+    xml:
+      name: "User"
+  Guest:
+    type: "object"
+    properties:
+      username:
+        type: "string"
+    xml:
+      name: "Guest"
+  UserLogin:
+    type: "object"
+    properties:
+      username:
+        type: "string"
+      password:
+        type: "string"
+    xml:
+      name: "UserLogin"
+externalDocs:
+  description: "Find out more about Swagger"
+  url: "http://swagger.io"

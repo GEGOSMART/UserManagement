@@ -29,7 +29,7 @@ type User struct {
 }
 
 type Guest struct {
-	Username string `json:"username" bson:"username"`
+	Username string `json:"username,omitempty" bson:"username,omitempty"`
 }
 
 var client *mongo.Client
@@ -42,12 +42,7 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	user.Password = string(Encryption.Encrypt([]byte(user.Password), "password"))
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err := collection.FindOne(ctx, User{Username: user.Username}).Decode(&dbuser)
-	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
-		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
-		return
-	}
+	_ = collection.FindOne(ctx, bson.M{"username": user.Username}).Decode(&dbuser)
 
 	if user.Username == dbuser.Username {
 		res.WriteHeader(http.StatusConflict)
@@ -70,6 +65,7 @@ func GetUsersEndpoint(res http.ResponseWriter, req *http.Request) {
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	cursor, err := collection.Find(ctx, bson.M{})
+
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
@@ -99,7 +95,7 @@ func GetUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	var user User
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err := collection.FindOne(ctx, User{ID: id}).Decode(&user)
+	err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
 
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
@@ -117,7 +113,7 @@ func DeleteUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	var user User
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err := collection.FindOneAndDelete(ctx, User{ID: id}).Decode(&user)
+	err := collection.FindOneAndDelete(ctx, bson.M{"_id": id}).Decode(&user)
 
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
@@ -135,7 +131,7 @@ func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	_ = json.NewDecoder(req.Body).Decode(&user)
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err := collection.FindOne(ctx, User{Username: user.Username}).Decode(&result)
+	err := collection.FindOne(ctx, bson.M{"username": user.Username}).Decode(&result)
 
 	if err != nil {
 		res.WriteHeader(http.StatusNotFound)
@@ -195,7 +191,7 @@ func LoginGuestEndpoint(res http.ResponseWriter, req *http.Request) {
 	_ = json.NewDecoder(req.Body).Decode(&guest)
 	collection := client.Database("geosmart_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err := collection.FindOne(ctx, User{Username: guest.Username}).Decode(&dbuser)
+	_ = collection.FindOne(ctx, bson.M{"username": guest.Username}).Decode(&dbuser)
 
 	if guest.Username == dbuser.Username {
 		res.WriteHeader(http.StatusConflict)
@@ -203,8 +199,7 @@ func LoginGuestEndpoint(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var tokenString string
-	tokenString, err = Auth.GenerateJWT(false, guest.Username)
+	tokenString, err := Auth.GenerateJWT(false, guest.Username)
 
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
