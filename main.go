@@ -18,14 +18,14 @@ import (
 )
 
 type User struct {
-	ID             primitive.ObjectID  `json:"_id,omitempty" bson:"_id,omitempty"`
-	Firstname      string              `json:"firstname,omitempty" bson:"firstname,omitempty"`
-	Lastname       string              `json:"lastname,omitempty" bson:"lastname,omitempty"`
-	Username       string              `json:"username,omitempty" bson:"username,omitempty"`
-	Password       string              `json:"password,omitempty" bson:"password,omitempty"`
-	Country        string              `json:"country,omitempty" bson:"country,omitempty"`
-	ProfilePicture string              `json:"profile_picture,omitempty" bson:"profile_picture,omitempty"`
-	CreatedAt      primitive.Timestamp `json:"created_at,omitempty" bson:"created_at,omitempty"`
+	ID             primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	Firstname      string             `json:"firstname,omitempty" bson:"firstname,omitempty"`
+	Lastname       string             `json:"lastname,omitempty" bson:"lastname,omitempty"`
+	Username       string             `json:"username,omitempty" bson:"username,omitempty"`
+	Password       string             `json:"password,omitempty" bson:"password,omitempty"`
+	Country        string             `json:"country,omitempty" bson:"country,omitempty"`
+	ProfilePicture string             `json:"profile_picture,omitempty" bson:"profile_picture,omitempty"`
+	CreatedAt      time.Time          `json:"created_at,omitempty" bson:"created_at,omitempty"`
 }
 
 type Guest struct {
@@ -50,13 +50,15 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	result, err := collection.InsertOne(ctx, user)
+	user.CreatedAt = time.Now()
+
+	_, err := collection.InsertOne(ctx, user)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	res.WriteHeader(http.StatusCreated)
-	json.NewEncoder(res).Encode(result)
+	json.NewEncoder(res).Encode(bson.M{"message": "Successfully created user"})
 }
 
 func GetUsersEndpoint(res http.ResponseWriter, req *http.Request) {
