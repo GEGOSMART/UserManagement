@@ -40,7 +40,7 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	var dbuser User
 	_ = json.NewDecoder(req.Body).Decode(&user)
 	user.Password = string(Encryption.Encrypt([]byte(user.Password), "password"))
-	collection := client.Database("geosmart_db").Collection("User")
+	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	_ = collection.FindOne(ctx, bson.M{"username": user.Username}).Decode(&dbuser)
 
@@ -62,7 +62,7 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 func GetUsersEndpoint(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("content-type", "application/json")
 	var users []User
-	collection := client.Database("geosmart_db").Collection("User")
+	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	cursor, err := collection.Find(ctx, bson.M{})
 
@@ -93,7 +93,7 @@ func GetUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	params := mux.Vars(req)
 	id, _ := primitive.ObjectIDFromHex(params["id"])
 	var user User
-	collection := client.Database("geosmart_db").Collection("User")
+	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
 
@@ -111,7 +111,7 @@ func DeleteUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	params := mux.Vars(req)
 	id, _ := primitive.ObjectIDFromHex(params["id"])
 	var user User
-	collection := client.Database("geosmart_db").Collection("User")
+	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err := collection.FindOneAndDelete(ctx, bson.M{"_id": id}).Decode(&user)
 
@@ -129,7 +129,7 @@ func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	var user User
 	var result User
 	_ = json.NewDecoder(req.Body).Decode(&user)
-	collection := client.Database("geosmart_db").Collection("User")
+	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err := collection.FindOne(ctx, bson.M{"username": user.Username}).Decode(&result)
 
@@ -171,7 +171,7 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 	id, _ := primitive.ObjectIDFromHex(params["id"])
 	var user User
 	_ = json.NewDecoder(req.Body).Decode(&user)
-	collection := client.Database("geosmart_db").Collection("User")
+	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	result, err := collection.UpdateOne(ctx, bson.M{"_id": id}, bson.D{{"$set", user}})
 
@@ -189,7 +189,7 @@ func LoginGuestEndpoint(res http.ResponseWriter, req *http.Request) {
 	var guest Guest
 	var dbuser User
 	_ = json.NewDecoder(req.Body).Decode(&guest)
-	collection := client.Database("geosmart_db").Collection("User")
+	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	_ = collection.FindOne(ctx, bson.M{"username": guest.Username}).Decode(&dbuser)
 

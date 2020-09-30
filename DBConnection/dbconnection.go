@@ -12,7 +12,7 @@ import (
 
 func Connection() (*mongo.Client, context.Context) {
 	// conect database
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb+srv://root:root@geosmart.wrmxv.mongodb.net/geosmart_db?retryWrites=true&w=majority"))
+	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb+srv://root:root@geosmart.wrmxv.mongodb.net/UserManagement_db?retryWrites=true&w=majority"))
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err = client.Connect(ctx)
 	if err != nil {
