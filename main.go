@@ -169,6 +169,7 @@ func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 
 	json.NewEncoder(res).Encode(bson.M{
+		"_id":             result.ID,
 		"firstname":       result.Firstname,
 		"lastname":        result.Lastname,
 		"username":        result.Username,
@@ -230,6 +231,7 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 
 	json.NewEncoder(res).Encode(bson.M{
+		"_id":             resultUser.ID,
 		"firstname":       resultUser.Firstname,
 		"lastname":        resultUser.Lastname,
 		"username":        resultUser.Username,
