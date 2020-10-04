@@ -28,6 +28,18 @@ type User struct {
 	CreatedAt      time.Time          `json:"created_at,omitempty" bson:"created_at,omitempty"`
 }
 
+type NewUser struct {
+	ID             primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	Firstname      string             `json:"firstname,omitempty" bson:"firstname,omitempty"`
+	Lastname       string             `json:"lastname,omitempty" bson:"lastname,omitempty"`
+	Username       string             `json:"username,omitempty" bson:"username,omitempty"`
+	Password       string             `json:"password,omitempty" bson:"password,omitempty"`
+	NewPassword    string             `json:"new_password,omitempty" bson:"new_password,omitempty"`
+	Country        string             `json:"country,omitempty" bson:"country,omitempty"`
+	ProfilePicture string             `json:"profile_picture,omitempty" bson:"profile_picture,omitempty"`
+	CreatedAt      time.Time          `json:"created_at,omitempty" bson:"created_at,omitempty"`
+}
+
 type Guest struct {
 	Username string `json:"username,omitempty" bson:"username,omitempty"`
 }
@@ -111,8 +123,8 @@ func GetUserEndpoint(res http.ResponseWriter, req *http.Request) {
 func DeleteUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("content-type", "application/json")
 	params := mux.Vars(req)
-	id, _ := primitive.ObjectIDFromHex(params["id"])
 	var user User
+	id, _ := primitive.ObjectIDFromHex(params["id"])
 	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err := collection.FindOneAndDelete(ctx, bson.M{"_id": id}).Decode(&user)
@@ -123,7 +135,7 @@ func DeleteUserEndpoint(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	json.NewEncoder(res).Encode(user)
+	json.NewEncoder(res).Encode(bson.M{"message": "user with username" + user.Username + " successfully deleted"})
 }
 
 func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
@@ -171,11 +183,37 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("content-type", "appication/json")
 	params := mux.Vars(req)
 	id, _ := primitive.ObjectIDFromHex(params["id"])
-	var user User
-	_ = json.NewDecoder(req.Body).Decode(&user)
+	var newUser NewUser
+	var result User
+	_ = json.NewDecoder(req.Body).Decode(&newUser)
 	collection := client.Database("UserManagement_db").Collection("User")
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	result, err := collection.UpdateOne(ctx, bson.M{"_id": id}, bson.D{{"$set", user}})
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&result)
+
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
+	}
+
+	if newUser.Password != string(Encryption.Decrypt([]byte(result.Password), "password")) {
+		res.WriteHeader(http.StatusUnauthorized)
+		res.Write([]byte(`{ "message": "Wrong password" }`))
+		return
+	}
+
+	var user User
+
+	user.Firstname = newUser.Firstname
+	user.Lastname = newUser.Lastname
+	user.Username = newUser.Username
+	if len(newUser.NewPassword) > 0 {
+		user.Password = string(Encryption.Encrypt([]byte(newUser.NewPassword), "password"))
+	}
+	user.Country = newUser.Country
+	user.ProfilePicture = newUser.ProfilePicture
+
+	_, err = collection.UpdateOne(ctx, bson.M{"_id": id}, bson.D{{"$set", user}})
 
 	if err != nil {
 		res.WriteHeader(http.StatusNotFound)
@@ -183,7 +221,22 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	json.NewEncoder(res).Encode(result)
+	var resultUser User
+	err = collection.FindOne(ctx, bson.M{"_id": id}).Decode(&resultUser)
+
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+	}
+
+	json.NewEncoder(res).Encode(bson.M{
+		"firstname":       resultUser.Firstname,
+		"lastname":        resultUser.Lastname,
+		"username":        resultUser.Username,
+		"country":         resultUser.Country,
+		"profile_picture": resultUser.ProfilePicture,
+		"created_at":      resultUser.CreatedAt,
+	})
 }
 
 func LoginGuestEndpoint(res http.ResponseWriter, req *http.Request) {
