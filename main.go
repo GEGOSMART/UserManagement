@@ -135,7 +135,7 @@ func DeleteUserEndpoint(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	json.NewEncoder(res).Encode(bson.M{"message": "user with username" + user.Username + " successfully deleted"})
+	json.NewEncoder(res).Encode(bson.M{"message": "user with username " + user.Username + " successfully deleted"})
 }
 
 func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
