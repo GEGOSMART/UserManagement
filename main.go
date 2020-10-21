@@ -26,6 +26,7 @@ type User struct {
 	Country        string             `json:"country,omitempty" bson:"country,omitempty"`
 	ProfilePicture string             `json:"profile_picture,omitempty" bson:"profile_picture,omitempty"`
 	CreatedAt      time.Time          `json:"created_at,omitempty" bson:"created_at,omitempty"`
+	Flag           string             `json:"flag,omitempty" bson:"flag,omitempty"`
 }
 
 type NewUser struct {
@@ -38,6 +39,7 @@ type NewUser struct {
 	Country        string             `json:"country,omitempty" bson:"country,omitempty"`
 	ProfilePicture string             `json:"profile_picture,omitempty" bson:"profile_picture,omitempty"`
 	CreatedAt      time.Time          `json:"created_at,omitempty" bson:"created_at,omitempty"`
+	Flag           string             `json:"flag,omitempty" bson:"flag,omitempty"`
 }
 
 type Guest struct {
