@@ -178,6 +178,7 @@ func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
 		"country":         result.Country,
 		"profile_picture": result.ProfilePicture,
 		"created_at":      result.CreatedAt,
+		"flag":            result.Flag,
 		"token":           tokenString,
 	})
 }
@@ -215,6 +216,7 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 	user.Country = newUser.Country
 	user.ProfilePicture = newUser.ProfilePicture
+	user.Flag = newUser.Flag
 
 	_, err = collection.UpdateOne(ctx, bson.M{"_id": id}, bson.D{{"$set", user}})
 
@@ -240,6 +242,7 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 		"country":         resultUser.Country,
 		"profile_picture": resultUser.ProfilePicture,
 		"created_at":      resultUser.CreatedAt,
+		"flag":            resultUser.Flag,
 	})
 }
 
