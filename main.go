@@ -162,7 +162,7 @@ func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 
 	var tokenString string
-	tokenString, err = Auth.GenerateJWT(true, result.Username)
+	tokenString, err = Auth.GenerateJWT(true, result.ID.Hex())
 
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
@@ -272,6 +272,25 @@ func LoginGuestEndpoint(res http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(res).Encode(bson.M{"token": tokenString})
 }
 
+func ValidateTokenEndpoint(res http.ResponseWriter, req *http.Request) {
+	res.Header().Add("content-type", "application/json")
+	params := mux.Vars(req)
+	tokenString, _ := params["token"]
+	tkn, err := Auth.VerifyToken(tokenString)
+
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
+	}
+
+	if tkn != nil {
+		json.NewEncoder(res).Encode(bson.M{"valid": true})
+	} else {
+		json.NewEncoder(res).Encode(bson.M{"valid": false})
+	}
+}
+
 func main() {
 	// database connection
 	var ctx context.Context
@@ -287,6 +306,7 @@ func main() {
 	router.HandleFunc("/user/{id}", DeleteUserEndpoint).Methods("DELETE")
 	router.HandleFunc("/user/{id}", UpdateuserEndpoint).Methods("PUT")
 	router.HandleFunc("/guest/login", LoginGuestEndpoint).Methods("POST")
+	router.HandleFunc("/validate-token/{token}", ValidateTokenEndpoint).Methods("GET")
 
 	// port listening
 	log.Fatal(http.ListenAndServe(":3000", router))
