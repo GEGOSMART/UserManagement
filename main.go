@@ -306,7 +306,7 @@ func main() {
 	router.HandleFunc("/user/{id}", DeleteUserEndpoint).Methods("DELETE")
 	router.HandleFunc("/user/{id}", UpdateuserEndpoint).Methods("PUT")
 	router.HandleFunc("/guest/login", LoginGuestEndpoint).Methods("POST")
-	router.HandleFunc("/validate-token/{token}", ValidateTokenEndpoint).Methods("GET")
+	router.HandleFunc("/token/validate-token/{token}", ValidateTokenEndpoint).Methods("GET")
 
 	// port listening
 	log.Fatal(http.ListenAndServe(":3000", router))
