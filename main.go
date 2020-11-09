@@ -6,7 +6,6 @@ import (
 	"UserManagementMS/Encryption"
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os/exec"
@@ -49,6 +48,7 @@ type Guest struct {
 }
 
 var client *mongo.Client
+
 const ldapserver = "ldap://18.210.193.21"
 
 func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
@@ -56,7 +56,7 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	var user User
 	var dbuser User
 	_ = json.NewDecoder(req.Body).Decode(&user)
-	userpassword = user.Password
+	userpassword := user.Password
 	user.Password = string(Encryption.Encrypt([]byte(userpassword), "password"))
 	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
@@ -79,7 +79,7 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 
 	// executing create user command for ldpa
-	cmd := exec.Command(`ldapadd -H ` + ldapserver + ` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin"\n`+
+	cmd := exec.Command(`ldapadd -H ` + ldapserver + ` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin"\n` +
 		`dn: uid=` + user.Username + `,ou=development,dc=swarch,dc=geosmart,dc=com\n` +
 		`objectClass: top\n` +
 		`objectclass: inetOrgPerson\n` +
@@ -101,7 +101,7 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 
 	// update password for encryption
-	cmd = exec.Command(`ldappasswd -H ` + ldapserver + ` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=`+ user.Username +`,ou=development,dc=swarch,dc=geosmart,dc=com" -s ` + userpassword + )
+	cmd = exec.Command(`ldappasswd -H ` + ldapserver + ` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=` + user.Username + `,ou=development,dc=swarch,dc=geosmart,dc=com" -s ` + userpassword)
 	if err := cmd.Run(); err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
