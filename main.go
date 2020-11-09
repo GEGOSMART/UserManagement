@@ -6,8 +6,10 @@ import (
 	"UserManagementMS/Encryption"
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os/exec"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -48,12 +50,15 @@ type Guest struct {
 
 var client *mongo.Client
 
+const ldapserver = "ldap://18.210.193.21"
+
 func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("content-type", "application/json")
 	var user User
 	var dbuser User
 	_ = json.NewDecoder(req.Body).Decode(&user)
-	user.Password = string(Encryption.Encrypt([]byte(user.Password), "password"))
+	userpassword := user.Password
+	user.Password = string(Encryption.Encrypt([]byte(userpassword), "password"))
 	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	_ = collection.FindOne(ctx, bson.M{"username": user.Username}).Decode(&dbuser)
@@ -67,8 +72,49 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	user.CreatedAt = time.Now()
 
 	_, err := collection.InsertOne(ctx, user)
+
 	if err != nil {
-		log.Fatal(err)
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
+	}
+
+	// create a .ldif file
+	ldifFile := []byte("dn: uid=" + user.Username + ",ou=development,dc=swarch,dc=geosmart,dc=com\n" +
+		"objectClass: top\n" +
+		"objectclass: inetOrgPerson\n" +
+		"objectClass: posixAccount\n" +
+		"gn:" + user.Firstname + "\n" +
+		"sn:" + user.Lastname + "\n" +
+		"cn:" + user.Username + "@unal.edu.co\n" +
+		"uid:" + user.Username + "\n" +
+		"uidNumber: 1000\n" +
+		"gidNumber: 500\n" +
+		"homeDirectory: /home/" + user.Username + "\n" +
+		"loginShell: /bin/bash\n" +
+		"userPassword: {crypt}x")
+
+	err = ioutil.WriteFile("create-user-"+user.Username+".ldif", ldifFile, 0644)
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
+	}
+
+	// executing create user command for ldpa
+	cmd := exec.Command(`ldapadd -H ` + ldapserver + ` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" -f create-user-` + user.Username + `.ldif`)
+	if err := cmd.Run(); err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
+	}
+
+	// update password for encryption
+	cmd = exec.Command(`ldappasswd -H ` + ldapserver + ` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=` + user.Username + `,ou=development,dc=swarch,dc=geosmart,dc=com" -s ` + userpassword)
+	if err := cmd.Run(); err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
 	}
 
 	res.WriteHeader(http.StatusCreated)
