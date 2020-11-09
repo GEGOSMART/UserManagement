@@ -10,7 +10,7 @@ COPY . .
 RUN go install
 RUN go build -o main .
 # install OpenLDAP tools package (on Ubuntu)
-RUN sudo apt-get update
-RUN apt-get install ldap-utilits
+RUN apt-get update && apt-get install -y \
+    ldap-utils
 # run main.go
 CMD ["/app/main"]
