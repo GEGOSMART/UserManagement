@@ -6,6 +6,7 @@ import (
 	"UserManagementMS/Encryption"
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os/exec"
@@ -68,31 +69,38 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	user.CreatedAt = time.Now()
+	// CREATE .ldif extension to use for ldpa service
+	ldifFile := []byte("dn: uid=" + user.Username + ",ou=development,dc=swarch,dc=geosmart,dc=com\n" +
+		"objectClass: top\n" +
+		"objectclass: inetOrgPerson\n" +
+		"objectClass: posixAccount\n" +
+		"gn:" + user.Firstname + "\n" +
+		"sn:" + user.Lastname + "\n" +
+		"cn:" + user.Username + "@unal.edu.co\n" +
+		"uid: " + user.Username + "\n" +
+		"uidNumber: 1000\n" +
+		"gidNumber: 500\n" +
+		"homeDirectory: /home/" + user.Username + "\n" +
+		"loginShell: /bin/bash\n" +
+		"userPassword: {crypt}x")
 
-	_, err := collection.InsertOne(ctx, user)
-
-	if err != nil {
+	if err := ioutil.WriteFile("create-user-"+user.Username+".ldif", ldifFile, 0644); err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
 		return
 	}
 
-	// executing create user command for ldpa
-	cmd := exec.Command(`ldapadd -H ` + ldapserver + ` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin"\n` +
-		`dn: uid=` + user.Username + `,ou=development,dc=swarch,dc=geosmart,dc=com\n` +
-		`objectClass: top\n` +
-		`objectclass: inetOrgPerson\n` +
-		`objectClass: posixAccount\n` +
-		`gn:` + user.Firstname + `\n` +
-		`sn:` + user.Lastname + `\n` +
-		`cn:` + user.Username + `@unal.edu.co\n` +
-		`uid:` + user.Username + `\n` +
-		`uidNumber: 1000\n` +
-		`gidNumber: 500\n` +
-		`homeDirectory: /home/` + user.Username + `\n` +
-		`loginShell: /bin/bash\n` +
-		`userPassword: {crypt}x`)
+	// executing command to CREATE user in ldpa service
+	cmd := exec.Command("/bin/sh", "-c", `ldapadd -H `+ldapserver+` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" -f create-user-`+user.Username+`.ldif`)
+
+	if err := cmd.Run(); err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
+	}
+
+	// executing command to REMOVE .ldif file
+	cmd = exec.Command("/bin/sh", "-c", "rm create-user-"+user.Username+".ldif")
 
 	if err := cmd.Run(); err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
@@ -101,8 +109,19 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 
 	// update password for encryption
-	cmd = exec.Command(`ldappasswd -H ` + ldapserver + ` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=` + user.Username + `,ou=development,dc=swarch,dc=geosmart,dc=com" -s ` + userpassword)
+	cmd = exec.Command("/bin/sh", "-c", `ldappasswd -H `+ldapserver+` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=`+user.Username+`,ou=development,dc=swarch,dc=geosmart,dc=com" -s `+userpassword)
+
 	if err := cmd.Run(); err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+		return
+	}
+
+	user.CreatedAt = time.Now()
+	// insert user in db
+	_, err := collection.InsertOne(ctx, user)
+
+	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
 		return
@@ -180,10 +199,21 @@ func DeleteUserEndpoint(res http.ResponseWriter, req *http.Request) {
 func LoginUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("content-type", "appication/json")
 	var user User
-	var result User
 	_ = json.NewDecoder(req.Body).Decode(&user)
+
+	// user authentication in LDAP SERVICE
+	cmd := exec.Command("/bin/sh", "-c", `ldapwhoami -H `+ldapserver+` -D "uid=`+user.Username+`,ou=development,dc=swarch,dc=geosmart,dc=com" -w "`+user.Password+`"`)
+
+	if err := cmd.Run(); err != nil {
+		res.WriteHeader(http.StatusUnauthorized)
+		res.Write([]byte(`{ "message": "Invalid credentials" }`))
+		return
+	}
+
+	// user authentication in DATABASE
 	collection := client.Database("UserManagement_db").Collection("User")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	var result User
 	err := collection.FindOne(ctx, bson.M{"username": user.Username}).Decode(&result)
 
 	if err != nil {
@@ -245,15 +275,68 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 
 	var user User
 
-	user.Firstname = newUser.Firstname
-	user.Lastname = newUser.Lastname
-	user.Username = newUser.Username
+	if len(newUser.Firstname) > 0 {
+		user.Firstname = newUser.Firstname
+	}
+	if len(newUser.Lastname) > 0 {
+		user.Lastname = newUser.Lastname
+	}
 	if len(newUser.NewPassword) > 0 {
+		// executing command to UPDATE user's password in ldpa service
+		cmd := exec.Command("/bin/sh", "-c", `ldappasswd -H `+ldapserver+` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=`+result.Username+`,ou=development,dc=swarch,dc=geosmart,dc=com" -s `+newUser.NewPassword)
+
+		if err := cmd.Run(); err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+			return
+		}
+
+		// assing new encrypted password to update in db
 		user.Password = string(Encryption.Encrypt([]byte(newUser.NewPassword), "password"))
 	}
-	user.Country = newUser.Country
-	user.ProfilePicture = newUser.ProfilePicture
-	user.Flag = newUser.Flag
+	if len(newUser.Username) > 0 {
+		// CREATE .ldif extension to use for ldpa service
+		ldifFile := []byte("dn: uid=" + result.Username + ",ou=development,dc=swarch,dc=geosmart,dc=com\n" +
+			"changetype: moddn\n" +
+			"newrdn: uid=" + newUser.Username + "\n" +
+			"deleteoldrdn: 1")
+
+		if err := ioutil.WriteFile("mod-uid-"+newUser.Username+".ldif", ldifFile, 0644); err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+			return
+		}
+
+		// executing command to UPDATE username in ldpa service
+		cmd := exec.Command("/bin/sh", "-c", `ldapmodify -H `+ldapserver+` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" -f mod-uid-`+newUser.Username+`.ldif`)
+
+		if err := cmd.Run(); err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+			return
+		}
+
+		// executing command to REMOVE .ldif file
+		cmd = exec.Command("/bin/sh", "-c", "rm mod-uid-"+newUser.Username+".ldif")
+
+		if err := cmd.Run(); err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(`{ "message": "` + err.Error() + `"}`))
+			return
+		}
+
+		// assign new username to update in db
+		user.Username = newUser.Username
+	}
+	if len(newUser.Country) > 0 {
+		user.Country = newUser.Country
+	}
+	if len(newUser.ProfilePicture) > 0 {
+		user.ProfilePicture = newUser.ProfilePicture
+	}
+	if len(newUser.Flag) > 0 {
+		user.Flag = newUser.Flag
+	}
 
 	_, err = collection.UpdateOne(ctx, bson.M{"_id": id}, bson.D{{"$set", user}})
 
@@ -328,6 +411,7 @@ func ValidateTokenEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// MAIN FUNCTION
 func main() {
 	// database connection
 	var ctx context.Context
