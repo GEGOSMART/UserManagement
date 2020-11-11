@@ -109,7 +109,7 @@ func CreateUserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 
 	// update password for encryption
-	cmd = exec.Command("/bin/sh", "-c", `ldappasswd -H `+ldapserver+` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=`+user.Username+`,ou=development,dc=swarch,dc=geosmart,dc=com" -s `+userpassword)
+	cmd = exec.Command("/bin/sh", "-c", `ldappasswd -H `+ldapserver+` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=`+user.Username+`,ou=development,dc=swarch,dc=geosmart,dc=com" -s "`+userpassword+`"`)
 
 	if err := cmd.Run(); err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
@@ -283,7 +283,7 @@ func UpdateuserEndpoint(res http.ResponseWriter, req *http.Request) {
 	}
 	if len(newUser.NewPassword) > 0 {
 		// executing command to UPDATE user's password in ldpa service
-		cmd := exec.Command("/bin/sh", "-c", `ldappasswd -H `+ldapserver+` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=`+result.Username+`,ou=development,dc=swarch,dc=geosmart,dc=com" -s `+newUser.NewPassword)
+		cmd := exec.Command("/bin/sh", "-c", `ldappasswd -H `+ldapserver+` -D "cn=admin,dc=swarch,dc=geosmart,dc=com" -w "admin" "uid=`+result.Username+`,ou=development,dc=swarch,dc=geosmart,dc=com" -s "`+newUser.NewPassword+`"`)
 
 		if err := cmd.Run(); err != nil {
 			res.WriteHeader(http.StatusInternalServerError)
